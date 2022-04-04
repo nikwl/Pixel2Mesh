@@ -40,7 +40,7 @@ class YCB(BaseDataset):
             model = self.load(
                 os.path.join(self._model_dir, class_input[:-1], "textured.obj")
             )
-            verts, norm_inds = model.sample(1000, return_indices=True)
+            verts, norm_inds = model.sample(1000)
             norms = model.face_normals[norm_inds, :]
             self._model_list[class_id] = [verts, norms]
     
