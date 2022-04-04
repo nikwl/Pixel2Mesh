@@ -40,12 +40,12 @@ class YCB(BaseDataset):
             model = self.load(
                 os.path.join(self._model_dir, class_input[:-1], "textured.obj")
             )
+            # Make sure normals are correct
+            model.fix_normals()
             verts, norm_inds = model.sample(1000, return_index=True)
             norms = model.face_normals[norm_inds, :]
             self._model_list[class_id] = [verts, norms]
     
-            # Make sure normals are correct
-            self._model_list[class_id].fix_normals()
             class_id += 1
         print("Loaded {} models".format(len(self._model_list)))
 
