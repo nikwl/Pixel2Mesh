@@ -37,9 +37,12 @@ class YCB(BaseDataset):
                 break
             
             # Load that model
-            self._model_list[class_id] = self.load(
+            model = self.load(
                 os.path.join(self._model_dir, class_input[:-1], "textured.obj")
             )
+            verts, norm_inds = model.sample(1000, return_indices=True)
+            norms = model.face_normals[norm_inds, :]
+            self._model_list[class_id] = [verts, norms]
     
             # Make sure normals are correct
             self._model_list[class_id].fix_normals()
@@ -116,8 +119,8 @@ class YCB(BaseDataset):
         # Get the points and normals for that model
         idx = 1
         model = self._model_list[idx]
-        pts = np.array(model.vertices).astype(np.float32)
-        normals = np.array(model.vertex_normals).astype(np.float32)
+        pts = np.array(model[0]).astype(np.float32)
+        normals = np.array(model[1]).astype(np.float32)
 
         # Get the masked image
         mask = np.ma.getmaskarray(np.ma.masked_equal(label, idx))
