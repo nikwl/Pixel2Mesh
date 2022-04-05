@@ -14,6 +14,27 @@ import config
 from datasets.base_dataset import BaseDataset
 
 
+def normalize_unit_cube(mesh, scale=True):
+    """Normalize a mesh so that it occupies a unit cube"""
+
+    # Get the overall size of the object
+    mesh = mesh.copy()
+    mesh_min, mesh_max = np.min(mesh.vertices, axis=0), np.max(mesh.vertices, axis=0)
+    size = mesh_max - mesh_min
+
+    # Center the object
+    mesh.vertices = mesh.vertices - ((size / 2.0) + mesh_min)
+
+    # Normalize scale of the object
+    if scale:
+        mesh.vertices = mesh.vertices * (1.0 / np.max(size))
+    try:
+        mesh.fix_normals()
+    except AttributeError:
+        pass
+    return mesh
+
+
 class YCB(BaseDataset):
     """
     """
@@ -28,10 +49,11 @@ class YCB(BaseDataset):
         # Load models
         self._model_dir = os.path.join(self.root, "models")
         class_file = open(os.path.join(self.root, "dataset_config", "classes.txt"))
+        class_file = open(os.path.join(self.root, "dataset_config", "classes_subset.txt.old"))
         self._model_list = {}
-        class_id = 1
         print("Loading models...")
-        while 1:
+        self.targets = [3, 10, 13, 15, 16]
+        for class_id in self.targets:
             class_input = class_file.readline()
             if not class_input:
                 break
@@ -41,17 +63,26 @@ class YCB(BaseDataset):
                 os.path.join(self._model_dir, class_input[:-1], "textured.obj")
             )
             # Make sure normals are correct
+            model = normalize_unit_cube(model)
             model.fix_normals()
-            verts, norm_inds = model.sample(1000, return_index=True)
-            norms = model.face_normals[norm_inds, :]
+
+            # verts, norm_inds = model.sample(1000, return_index=True)
+            # norms = model.face_normals[norm_inds, :]
+            verts = np.array(model.vertices)
+            norms = np.array(model.vertex_normals)
+
             self._model_list[class_id] = [verts, norms]
     
-            class_id += 1
         print("Loaded {} models".format(len(self._model_list)))
 
         # Load train/test file list
-        assert file_list_name == "test" or file_list_name == "train"
-        input_file = open(os.path.join(self.root, "dataset_config", file_list_name + "_data_list.txt"), "r")
+        if "test" in file_list_name:
+            file_list_name = "test_data_list"
+        elif "train" in file_list_name:
+            file_list_name = "train_data_list_subset_half"
+        else:
+            raise RuntimeError()
+        input_file = open(os.path.join(self.root, "dataset_config", file_list_name + ".txt"), "r")
         print("Reading file list...")
         self.file_names = []
         while True:
@@ -75,6 +106,8 @@ class YCB(BaseDataset):
         self.normalization = normalization
         self.mesh_pos = mesh_pos
         self.resize_with_constant_border = ycb_options.resize_with_constant_border
+
+        self.load_npy()
 
     def load(self, f_in):
         """
@@ -100,24 +133,43 @@ class YCB(BaseDataset):
         
         return self._cache[f_in]
 
+    def load_npy(self):
+        print("Loading numpy data ...")
+        self.list_rgb = np.load(self.root + "/list_rgb.npy")
+        # assert len(self.list) == len(self.list_rgb)
+        # self.list_depth = np.load(self.root + "/list_depth.npy")
+        self.list_label = np.load(self.root + "/list_label.npy")
+        self.list_meta = np.load(self.root + "/list_meta.npy", allow_pickle=True)
+
     def __getitem__(self, index):
-        try:
-            img = np.array(self.load('{0}/{1}-color.png'.format(self.root, self.file_names[index])))
-            # depth = np.array(self.load('{0}/{1}-depth.png'.format(self.root, self.file_names[index])))
-            label = np.array(self.load('{0}/{1}-label.png'.format(self.root, self.file_names[index])))
-            meta = self.load('{0}/{1}-meta.mat'.format(self.root, self.file_names[index]))
-        except FileNotFoundError:
-            print("FileNotFoundError: {}/{}".format(self.root, self.file_names[index]))
-            return self[index+1]
+        # print("Getting ", index)
+        # 0 = 4.45
+        # 1 = 3.8
+        # 2 = 
+
+        if hasattr(self, "list_rgb"):
+            img = self.list_rgb[:, :, :, index]
+            # depth = self.list_depth[:, :, index]
+            label = self.list_label[:, :, index]
+            meta = self.list_meta[index]
+        else:
+            try:
+                img = np.array(self.load('{0}/{1}-color.png'.format(self.root, self.file_names[index])))
+                # depth = np.array(self.load('{0}/{1}-depth.png'.format(self.root, self.file_names[index])))
+                label = np.array(self.load('{0}/{1}-label.png'.format(self.root, self.file_names[index])))
+                meta = self.load('{0}/{1}-meta.mat'.format(self.root, self.file_names[index]))
+            except FileNotFoundError:
+                print("FileNotFoundError: {}/{}".format(self.root, self.file_names[index]))
+                return self[index+1]
 
         # Get the indices of all models in the image
         obj = meta['cls_indexes'].flatten().astype(np.int32)
 
         # Pick a random model index
-        idx = obj[np.random.randint(0, len(obj))]
+        greenlit = list(set(self.targets).intersection(set(obj)))
+        idx = greenlit[np.random.randint(0, len(greenlit))]
 
         # Get the points and normals for that model
-        idx = 1
         model = self._model_list[idx]
         pts = np.array(model[0]).astype(np.float32)
         normals = np.array(model[1]).astype(np.float32)

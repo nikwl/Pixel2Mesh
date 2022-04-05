@@ -47,7 +47,7 @@ model:
   z_threshold: 0
 name: p2m
 num_gpus: 2
-num_workers: 10
+num_workers: 4
 optim:
   adam_beta1: 0.9
   lr: 0.0001
@@ -68,7 +68,7 @@ test:
   summary_steps: 50
   weighted_mean: false
 train:
-  batch_size: 100
+  batch_size: 24
   checkpoint_steps: 10000
   num_epochs: 110
   shuffle: true
