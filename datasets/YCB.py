@@ -71,6 +71,14 @@ class YCB(BaseDataset):
             verts = np.array(model.vertices)
             norms = np.array(model.vertex_normals)
 
+            mag = np.linalg.norm(norms, axis=-1)
+            verts = verts[mag != 0, :]
+            norms = norms[mag != 0, :]
+
+            mag = np.linalg.norm(norms, axis=-1, keepdims=True)
+            assert (mag == 0).sum() == 0
+            norms = norms / mag
+
             self._model_list[class_id] = [verts, norms]
     
         print("Loaded {} models".format(len(self._model_list)))

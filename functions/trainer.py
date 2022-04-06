@@ -139,8 +139,11 @@ class Trainer(CheckpointRunner):
                 self.step_count += 1
 
                 # Tensorboard logging every summary_steps steps
-                # if self.step_count % self.options.train.summary_steps == 0:
-                #     self.train_summaries(batch, *out)
+                if self.step_count % self.options.train.summary_steps == 0:
+                    try:
+                        self.train_summaries(batch, *out)
+                    except OverflowError:
+                        pass
 
                 # Save checkpoint every checkpoint_steps steps
                 if self.step_count % self.options.train.checkpoint_steps == 0:
